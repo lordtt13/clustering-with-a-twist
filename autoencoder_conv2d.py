@@ -6,8 +6,11 @@ Created on Sun May 31 05:03:52 2020
 @author: tanmay
 """
 
+import numpy as np
+
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Conv2D, Input, Reshape, Flatten, Conv2DTranspose, Dense
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Conv2D, Input, Reshape, Flatten, Conv2DTranspose, Dense, UpSampling2D
 
 
 def autoencoderConv2D_1(input_shape = (28, 28, 1), filters = [32, 64, 128, 10]):
@@ -32,4 +35,39 @@ def autoencoderConv2D_1(input_shape = (28, 28, 1), filters = [32, 64, 128, 10]):
     x = Conv2DTranspose(filters[0], 5, strides = 2, padding = 'same', activation = 'relu', name = 'deconv2')(x)
 
     decoded = Conv2DTranspose(input_shape[2], 5, strides = 2, padding = 'same', name = 'deconv1')(x)
+    return Model(inputs = input_img, outputs = decoded, name = 'AE'), Model(inputs = input_img, outputs = encoded, name = 'encoder')
+
+
+def autoencoderConv2D_2(img_shape = (28, 28, 1)):
+    """
+    Conv2D auto-encoder model.
+    Arguments:
+        img_shape: e.g. (28, 28, 1) for MNIST
+    return:
+        (autoencoder, encoder), Model of autoencoder and model of encoder
+    """
+    input_img = Input(shape = img_shape)
+    # Encoder
+    x = Conv2D(16, (3, 3), activation = 'relu', padding = 'same', strides = (2, 2))(input_img)
+    x = Conv2D(8, (3, 3), activation = 'relu', padding = 'same', strides = (2, 2))(x)
+    x = Conv2D(8, (3, 3), activation = 'relu', padding = 'same', strides = (2, 2))(x)
+    shape_before_flattening = K.int_shape(x)
+    # at this point the representation is (4, 4, 8) i.e. 128-dimensional
+    x = Flatten()(x)
+    encoded = Dense(10, activation = 'relu', name = 'encoded')(x)
+
+    # Decoder
+    x = Dense(np.prod(shape_before_flattening[1:]),
+                activation = 'relu')(encoded)
+    # Reshape into an image of the same shape as before our last `Flatten` layer
+    x = Reshape(shape_before_flattening[1:])(x)
+
+    x = Conv2D(8, (3, 3), activation = 'relu', padding = 'same')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(8, (3, 3), activation = 'relu', padding = 'same')(x)
+    x = UpSampling2D((2, 2))(x)
+    x = Conv2D(16, (3, 3), activation = 'relu')(x)
+    x = UpSampling2D((2, 2))(x)
+    decoded = Conv2D(1, (3, 3), activation = 'sigmoid', padding = 'same')(x)
+
     return Model(inputs = input_img, outputs = decoded, name = 'AE'), Model(inputs = input_img, outputs = encoded, name = 'encoder')
